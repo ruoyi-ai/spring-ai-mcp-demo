@@ -147,7 +147,7 @@
                                         <td th:text="${tool.description != null ? tool.description : '-'}"></td>
                                         <td th:text="${#temporals.format(tool.createTime, 'yyyy-MM-dd HH:mm')}"></td>
                                         <td>
-                                            <button th:if="${tool.type == 'LOCAL' && tool.status == 'ENABLED'}" 
+                                            <button th:if="${tool.status == 'ENABLED'}"
                                                     th:onclick="'testTool(' + ${tool.id} + ')'" 
                                                     class="btn btn-sm btn-outline-success">
                                                 <i class="bi bi-play-circle"></i> 测试

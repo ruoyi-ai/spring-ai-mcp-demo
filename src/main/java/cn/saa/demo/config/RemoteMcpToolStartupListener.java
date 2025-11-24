@@ -35,9 +35,7 @@ public class RemoteMcpToolStartupListener implements ApplicationListener<Applica
         try {
             // 获取所有已启用的远程工具
             List<McpToolData> remoteTools = mcpToolService.listByType(McpToolData.Type.REMOTE)
-                    .stream()
-                    .filter(tool -> McpToolData.Status.ENABLED.equals(tool.getStatus()))
-                    .collect(Collectors.toList());
+                    .stream().filter(tool -> McpToolData.Status.ENABLED.equals(tool.getStatus())).toList();
 
             if (remoteTools.isEmpty()) {
                 log.info("没有需要注册的远程 MCP 工具");
@@ -55,7 +53,6 @@ public class RemoteMcpToolStartupListener implements ApplicationListener<Applica
                         successCount++;
                         continue;
                     }
-
                     // 注册工具
                     if (mcpToolRegistryService.registerTool(tool)) {
                         successCount++;
@@ -69,9 +66,7 @@ public class RemoteMcpToolStartupListener implements ApplicationListener<Applica
                     log.error("注册远程工具异常: {}", tool.getName(), e);
                 }
             }
-
-            log.info("远程 MCP 工具注册完成，成功: {}/{}, 失败: {}", 
-                    successCount, remoteTools.size(), failCount);
+            log.info("远程 MCP 工具注册完成，成功: {}/{}, 失败: {}", successCount, remoteTools.size(), failCount);
         } catch (Exception e) {
             log.error("注册远程 MCP 工具时发生异常", e);
         }
