@@ -30,16 +30,28 @@ public class McpToolData {
     private Long id;
 
     /**
-     * 工具名称
+     * 工具名称（唯一标识）
      */
     @TableField("name")
     private String name;
+
+    /**
+     * 显示名称
+     */
+    @TableField("display_name")
+    private String displayName;
 
     /**
      * 工具描述
      */
     @TableField("description")
     private String description;
+
+    /**
+     * 参数结构（JSON Schema 格式）
+     */
+    @TableField("param_schema")
+    private String paramSchema;
 
     /**
      * 工具类型：LOCAL-本地, REMOTE-远程

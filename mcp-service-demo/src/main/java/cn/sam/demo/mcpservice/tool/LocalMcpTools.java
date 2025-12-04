@@ -1,5 +1,7 @@
 package cn.sam.demo.mcpservice.tool;
 
+import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,7 @@ import java.util.Map;
  *
  * @author Administrator
  */
+@Slf4j
 @Service
 public class LocalMcpTools {
 
@@ -46,6 +49,9 @@ public class LocalMcpTools {
     @McpTool(name = "calculator_add", description = "计算两个数字的和")
     public Map<String, Object> calculatorAdd(@McpToolParam(description = "第一个数字") Double a,
                                              @McpToolParam(description = "第二个数字") Double b) {
+        log.info("计算两个数字的和：{} + {}", a, b);
+        log.info("a: {}", a);
+        log.info("b: {}", b);
         Map<String, Object> result = new HashMap<>();
         result.put("operation", "add");
         result.put("a", a);
@@ -61,6 +67,7 @@ public class LocalMcpTools {
     @McpTool(name = "calculator_multiply", description = "计算两个数字的乘积")
     public Map<String, Object> calculatorMultiply(@McpToolParam(description = "第一个数字") Double a,
                                                   @McpToolParam(description = "第二个数字") Double b) {
+        log.info("计算两个数字的乘积：{} * {}", a, b);
         Map<String, Object> result = new HashMap<>();
         result.put("operation", "multiply");
         result.put("a", a);
@@ -75,6 +82,7 @@ public class LocalMcpTools {
      */
     @McpTool(name = "string_reverse", description = "反转字符串")
     public Map<String, Object> stringReverse(@McpToolParam(description = "要反转的字符串") String text) {
+        log.info("反转字符串：{}", text);
         Map<String, Object> result = new HashMap<>();
         result.put("original", text);
         result.put("reversed", new StringBuilder(text).reverse().toString());
@@ -87,6 +95,7 @@ public class LocalMcpTools {
      */
     @McpTool(name = "string_uppercase", description = "将字符串转换为大写")
     public Map<String, Object> stringUppercase(@McpToolParam(description = "要转换的字符串") String text) {
+        log.info("将字符串转换为大写：{}", text);
         Map<String, Object> result = new HashMap<>();
         result.put("original", text);
         result.put("uppercase", text.toUpperCase());

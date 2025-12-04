@@ -19,6 +19,10 @@
           <el-icon><ChatDotRound /></el-icon>
           <span>AI 聊天</span>
         </el-menu-item>
+        <el-menu-item index="/mcp-test">
+          <el-icon><Connection /></el-icon>
+          <span>MCP 测试</span>
+        </el-menu-item>
       </el-menu>
     </el-header>
     <el-main>
@@ -30,14 +34,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Tools, Shop, ChatDotRound } from '@element-plus/icons-vue'
+import { Tools, Shop, ChatDotRound, Connection } from '@element-plus/icons-vue'
 
 const route = useRoute()
 
 const activeMenu = computed(() => {
   return route.path.startsWith('/tools') ? '/tools' :
          route.path.startsWith('/markets') ? '/markets' :
-         route.path.startsWith('/chat') ? '/chat' : '/tools'
+         route.path.startsWith('/chat') ? '/chat' :
+         route.path.startsWith('/mcp-test') ? '/mcp-test' : '/tools'
 })
 </script>
 
@@ -55,12 +60,24 @@ const activeMenu = computed(() => {
 .el-main {
   padding: 0;
   height: calc(100vh - 60px);
-  overflow: hidden;
-  }
+  overflow: auto;
+}
 </style>
 
 <style>
 .el-container {
   height: 100vh;
+}
+
+/* 确保下拉框弹出层正确显示 */
+.el-select-dropdown,
+.el-popper {
+  z-index: 9999 !important;
+}
+
+/* 修复下拉选项可能不显示的问题 */
+.el-select-dropdown__item {
+  display: block !important;
+  visibility: visible !important;
 }
 </style>

@@ -11,6 +11,15 @@ spring:
         enabled: true
         name: webmvc-mcp-server
         version: 1.0.0
+        
+        keep-alive-interval: 30s
+        # 变更通知配置（实时推送到客户端）
+
+        tool-change-notification: true      # ✅ 工具列表变更时自动通知客户端
+        resource-change-notification: true  # ✅ 资源列表变更时自动通知客户端
+        prompt-change-notification: true    # ✅ 提示词列表变更时自动通知客户端
+
+        # 传输协议配置（SSE 支持服务端推送）
 #        type: SYNC
 #        annotation-scanner:
 #          enabled: true
@@ -20,9 +29,5 @@ spring:
 #          resource: true
 #          prompt: true
 #          completion: true
-#        sse-message-endpoint: /mcp/messages
-#        keep-alive-interval: 30s
 #        streamable-http:
 #          mcp-endpoint: /mcp
-#        sse-endpoint: /sse
-#        protocol: streamable
