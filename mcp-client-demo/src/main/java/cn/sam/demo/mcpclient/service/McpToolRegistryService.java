@@ -1,6 +1,8 @@
 package cn.sam.demo.mcpclient.service;
 
 import cn.sam.demo.mcpclient.entity.McpToolData;
+import cn.sam.demo.mcpclient.mapper.McpToolMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
@@ -9,13 +11,14 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
  * MCP 工具动态注册服务
- * 负责将 MCP 工具动态注册到 Spring 容器中
+ * 负责将 MCP 工具动态注册到 Spring 容器中，并管理工具的数据库持久化
  *
  * @author Administrator
  */
@@ -26,8 +29,11 @@ public class McpToolRegistryService {
     @Resource
     private ApplicationContext applicationContext;
 
+    @Resource
+    private McpToolMapper mcpToolMapper;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     // 存储已注册的工具 Bean 名称
     private final Map<Long, String> registeredTools = new ConcurrentHashMap<>();
 
@@ -73,7 +79,7 @@ public class McpToolRegistryService {
                     log.info("成功注销 MCP 工具: {} ({})", toolId, beanName);
                 }
             }
-            
+
             registeredTools.remove(toolId);
             return true;
         } catch (Exception e) {
@@ -103,8 +109,8 @@ public class McpToolRegistryService {
         try {
             // 解析配置信息
             Map<String, Object> config = objectMapper.readValue(
-                    tool.getConfigJson() != null ? tool.getConfigJson() : "{}",
-                    new TypeReference<Map<String, Object>>() {});
+                    tool.getConfigJson() != null ? tool.getConfigJson() : "{}", new TypeReference<>() {
+                    });
 
             // 获取传输配置
             @SuppressWarnings("unchecked")
@@ -183,5 +189,72 @@ public class McpToolRegistryService {
      */
     public boolean isRegistered(Long toolId) {
         return registeredTools.containsKey(toolId);
+    }
+
+    // ========== 数据库操作方法 ==========
+
+    /**
+     * 获取所有远程工具
+     * 
+     * @return 远程工具列表
+     */
+    public List<McpToolData> getAllRemoteTools() {
+        LambdaQueryWrapper<McpToolData> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(McpToolData::getType, McpToolData.Type.REMOTE);
+        return mcpToolMapper.selectList(queryWrapper);
+    }
+
+    /**
+     * 保存工具到数据库
+     * 
+     * @param tool 工具实体
+     * @return 是否保存成功
+     */
+    public boolean saveTool(McpToolData tool) {
+        try {
+            int result = mcpToolMapper.insert(tool);
+            return result > 0;
+        } catch (Exception e) {
+            log.error("保存工具到数据库失败: {}", tool.getName(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 更新数据库中的工具
+     * 
+     * @param tool 工具实体
+     * @return 是否更新成功
+     */
+    public boolean updateTool(McpToolData tool) {
+        try {
+            int result = mcpToolMapper.updateById(tool);
+            return result > 0;
+        } catch (Exception e) {
+            log.error("更新工具失败: {}", tool.getName(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 根据名称查询工具
+     * 
+     * @param toolName 工具名称
+     * @return 工具实体
+     */
+    public McpToolData getToolByName(String toolName) {
+        LambdaQueryWrapper<McpToolData> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(McpToolData::getName, toolName);
+        return mcpToolMapper.selectOne(queryWrapper);
+    }
+
+    /**
+     * 根据ID查询工具
+     * 
+     * @param toolId 工具ID
+     * @return 工具实体
+     */
+    public McpToolData getToolById(Long toolId) {
+        return mcpToolMapper.selectById(toolId);
     }
 }

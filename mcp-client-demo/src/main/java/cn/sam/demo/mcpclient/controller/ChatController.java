@@ -2,12 +2,16 @@ package cn.sam.demo.mcpclient.controller;
 
 import cn.sam.demo.mcpclient.entity.ChatHistory;
 import cn.sam.demo.mcpclient.service.ChatHistoryService;
+import cn.sam.demo.mcpclient.service.McpToolCallbackService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -25,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author Administrator
  */
+@Slf4j
 @RestController
 @RequestMapping("/api")
 public class ChatController {
@@ -33,7 +38,14 @@ public class ChatController {
     private ChatClient chatClient;
 
     @Resource
+    @Qualifier("toolChatClient")
+    private ChatClient toolChatClient;
+
+    @Resource
     private ChatHistoryService chatHistoryService;
+
+    @Resource
+    private McpToolCallbackService mcpToolCallbackService;
 
     /**
      * 生成AI回复（带历史记录）
@@ -248,6 +260,217 @@ public class ChatController {
     public String deleteHistory(@RequestParam("sessionId") String sessionId) {
         boolean success = chatHistoryService.deleteBySessionId(sessionId);
         return success ? "删除成功" : "删除失败或记录不存在";
+    }
+
+    /**
+     * 带工具的 AI 对话
+     * AI 可以根据需要自动调用 MCP 工具来完成任务
+     *
+     * @param message   用户消息
+     * @param sessionId 会话ID
+     * @return AI 回复（可能包含工具调用结果）
+     */
+    @GetMapping(value = "/ai/generateWithTools", produces = "text/plain;charset=UTF-8")
+    public String generateWithTools(
+            @RequestParam(value = "message", defaultValue = "Tell me a joke") String message,
+            @RequestParam(value = "sessionId", required = false, defaultValue = "1") String sessionId) {
+
+        // 如果没有提供sessionId，则生成一个新的
+        if (sessionId == null || sessionId.isEmpty() || "1".equals(sessionId)) {
+            sessionId = UUID.randomUUID().toString().replace("-", "");
+        }
+
+        log.info("收到带工具的聊天请求, sessionId: {}, message: {}", sessionId, message);
+
+        // 获取历史记录
+        List<ChatHistory> histories = chatHistoryService.getRecentHistoryBySessionId(sessionId, 20);
+        List<Message> messageList = buildContext(histories);
+
+        try {
+            // 使用带工具的 ChatClient 进行对话
+            String aiResponse = toolChatClient.prompt()
+                    .messages(messageList)
+                    .user(message)
+                    .call()
+                    .content();
+
+            log.info("AI 回复: {}", aiResponse);
+
+            // 保存历史记录
+            ChatHistory chatHistory = ChatHistory.builder()
+                    .sessionId(sessionId)
+                    .userMessage(message)
+                    .aiResponse(aiResponse)
+                    .createTime(LocalDateTime.now())
+                    .updateTime(LocalDateTime.now())
+                    .build();
+            chatHistoryService.saveInfo(chatHistory);
+
+            return aiResponse;
+
+        } catch (Exception e) {
+            log.error("带工具的对话失败", e);
+            return "对话失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 带工具的流式 AI 对话
+     * AI 可以根据需要自动调用 MCP 工具来完成任务
+     *
+     * @param message   用户消息
+     * @param sessionId 会话ID
+     * @return SSE 流式响应
+     */
+    @GetMapping(value = "/ai/generateStreamWithTools", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter generateStreamWithTools(
+            @RequestParam(value = "message", defaultValue = "Tell me a joke") String message,
+            @RequestParam(value = "sessionId", required = false, defaultValue = "1") String sessionId) {
+
+        // 如果没有提供sessionId，则生成一个新的
+        if (sessionId == null || sessionId.isEmpty() || "1".equals(sessionId)) {
+            sessionId = UUID.randomUUID().toString().replace("-", "");
+        }
+
+        log.info("收到带工具的流式聊天请求, sessionId: {}, message: {}", sessionId, message);
+
+        // 创建 SSE Emitter
+        SseEmitter emitter = new SseEmitter(300000L);
+
+        // 获取历史记录
+        List<ChatHistory> histories = chatHistoryService.getRecentHistoryBySessionId(sessionId, 20);
+        List<Message> messageList = buildContext(histories);
+
+        StringBuilder fullResponse = new StringBuilder();
+        final String finalSessionId = sessionId;
+        final String finalMessage = message;
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                // 使用带工具的 ChatClient 进行流式对话
+                Flux<String> flux = toolChatClient.prompt()
+                        .messages(messageList)
+                        .user(message)
+                        .stream()
+                        .content();
+
+                flux.subscribe(
+                        chunk -> {
+                            try {
+                                fullResponse.append(chunk);
+                                emitter.send(SseEmitter.event()
+                                        .data(chunk)
+                                        .name("message"));
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        },
+                        error -> {
+                            log.error("流式对话错误", error);
+                            emitter.completeWithError(error);
+                        },
+                        () -> {
+                            // 保存历史记录
+                            String completeResponse = fullResponse.toString();
+                            if (!completeResponse.isEmpty()) {
+                                try {
+                                    ChatHistory chatHistory = ChatHistory.builder()
+                                            .sessionId(finalSessionId)
+                                            .userMessage(finalMessage)
+                                            .aiResponse(completeResponse)
+                                            .createTime(LocalDateTime.now())
+                                            .updateTime(LocalDateTime.now())
+                                            .build();
+                                    chatHistoryService.saveInfo(chatHistory);
+                                } catch (Exception e) {
+                                    log.warn("保存历史记录失败", e);
+                                }
+                            }
+                            try {
+                                emitter.send(SseEmitter.event().name("done").data(""));
+                                emitter.complete();
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        }
+                );
+            } catch (Exception e) {
+                log.error("流式对话失败", e);
+                emitter.completeWithError(e);
+            }
+        });
+
+        return emitter;
+    }
+
+    /**
+     * 动态选择工具进行对话
+     * 可以指定使用哪些工具
+     *
+     * @param message   用户消息
+     * @param toolNames 工具名称列表（逗号分隔）
+     * @param sessionId 会话ID
+     * @return AI 回复
+     */
+    @GetMapping(value = "/ai/generateWithSpecificTools", produces = "text/plain;charset=UTF-8")
+    public String generateWithSpecificTools(
+            @RequestParam("message") String message,
+            @RequestParam(value = "tools", required = false) String toolNames,
+            @RequestParam(value = "sessionId", required = false, defaultValue = "1") String sessionId) {
+
+        if (sessionId == null || sessionId.isEmpty() || "1".equals(sessionId)) {
+            sessionId = UUID.randomUUID().toString().replace("-", "");
+        }
+
+        log.info("收到指定工具的聊天请求, sessionId: {}, tools: {}, message: {}", sessionId, toolNames, message);
+
+        List<ChatHistory> histories = chatHistoryService.getRecentHistoryBySessionId(sessionId, 20);
+        List<Message> messageList = buildContext(histories);
+
+        try {
+            // 构建带指定工具的请求
+            ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt()
+                    .messages(messageList)
+                    .user(message);
+
+            // 如果指定了工具，则动态添加
+            if (toolNames != null && !toolNames.isEmpty()) {
+                List<FunctionToolCallback> selectedTools = new ArrayList<>();
+                for (String toolName : toolNames.split(",")) {
+                    FunctionToolCallback callback = mcpToolCallbackService.getToolCallback(toolName.trim());
+                    if (callback != null) {
+                        selectedTools.add(callback);
+                        log.debug("添加工具: {}", toolName);
+                    } else {
+                        log.warn("工具不存在或未启用: {}", toolName);
+                    }
+                }
+
+                if (!selectedTools.isEmpty()) {
+                    requestSpec = requestSpec.toolCallbacks(selectedTools.toArray(new FunctionToolCallback[0]));
+                }
+            }
+
+            String aiResponse = requestSpec.call().content();
+
+            log.info("AI 回复: {}", aiResponse);
+
+            // 保存历史记录
+            ChatHistory chatHistory = ChatHistory.builder()
+                    .sessionId(sessionId)
+                    .userMessage(message)
+                    .aiResponse(aiResponse)
+                    .createTime(LocalDateTime.now())
+                    .updateTime(LocalDateTime.now())
+                    .build();
+            chatHistoryService.saveInfo(chatHistory);
+
+            return aiResponse;
+
+        } catch (Exception e) {
+            log.error("对话失败", e);
+            return "对话失败: " + e.getMessage();
+        }
     }
 
     /**

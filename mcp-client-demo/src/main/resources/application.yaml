@@ -7,3 +7,14 @@ spring:
   profiles:
     active: dev
 
+# MCP 客户端配置
+mcp:
+  client:
+    # 自动发现配置
+    auto-discovery:
+      enabled: true  # 是否启用从远端自动发现工具
+    # 远程 MCP 服务配置
+    remote:
+      url: http://127.0.0.1:9899  # 远程 MCP 服务地址
+      transport-type: sse  # 传输类型：sse 或 streamable-http
+

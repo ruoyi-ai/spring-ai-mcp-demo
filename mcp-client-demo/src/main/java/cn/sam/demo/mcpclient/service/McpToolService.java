@@ -45,10 +45,20 @@ public interface McpToolService {
     /**
      * 根据状态查询工具
      *
-     * @param status 状态
+     * @param status 状态字符串
      * @return 工具列表
      */
     List<McpToolData> listByStatus(String status);
+
+    /**
+     * 根据状态查询工具
+     *
+     * @param status 状态枚举
+     * @return 工具列表
+     */
+    default List<McpToolData> listByStatus(McpToolData.Status status) {
+        return listByStatus(status.toString());
+    }
 
     /**
      * 根据名称模糊查询

@@ -45,6 +45,11 @@ const routes: RouteRecordRaw[] = [
     path: '/chat',
     name: 'Chat',
     component: () => import('@/views/ChatView.vue')
+  },
+  {
+    path: '/mcp-test',
+    name: 'McpTest',
+    component: () => import('@/views/McpTestView.vue')
   }
 ]
 

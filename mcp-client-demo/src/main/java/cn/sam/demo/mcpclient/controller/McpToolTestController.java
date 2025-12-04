@@ -69,10 +69,37 @@ public class McpToolTestController {
             Object toolResult;
             try {
                 if (McpToolData.Type.REMOTE.equals(tool.getType())) {
-                    // 远程工具调用
+                    // 远程工具调用 - 先进行健康检查
                     if (!remoteMcpToolInvokeService.isToolAvailable(tool)) {
+                        // 解析配置以获取详细信息
+                        String configInfo = "未配置";
+                        try {
+                            if (tool.getConfigJson() != null && !tool.getConfigJson().isEmpty()) {
+                                Map<String, Object> config = objectMapper.readValue(tool.getConfigJson(), Map.class);
+                                Map<String, Object> transport = (Map<String, Object>) config.get("transport");
+                                if (transport != null) {
+                                    String transportType = (String) transport.getOrDefault("type", "未知");
+                                    String url = (String) transport.getOrDefault("url", "未知");
+                                    configInfo = String.format("类型: %s, URL: %s", transportType, url);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.debug("解析工具配置失败", e);
+                        }
+                        
                         result.put("success", false);
-                        result.put("error", "远程工具不可用，请检查连接配置");
+                        result.put("error", "远程 MCP 工具不可用");
+                        result.put("details", String.format(
+                            "无法连接到远程 MCP 服务器。\n" +
+                            "工具配置: %s\n\n" +
+                            "可能原因：\n" +
+                            "1. 远程 MCP 服务器未启动\n" +
+                            "2. 服务器地址或端口配置错误\n" +
+                            "3. 传输类型配置与服务端不匹配（请确认服务端是 SSE 还是 Streamable HTTP）\n" +
+                            "4. 网络连接问题或防火墙阻止\n" +
+                            "5. 工具未在系统中正确注册",
+                            configInfo
+                        ));
                         return ResponseEntity.badRequest().body(result);
                     }
                     // 注意：这里需要知道远程工具的实际工具名称
@@ -83,7 +110,16 @@ public class McpToolTestController {
                     // 本地工具调用
                     if (!mcpToolInvokeService.hasTool(tool.getName())) {
                         result.put("success", false);
-                        result.put("error", "工具未注册到 MCP 系统，请确保工具类已正确加载");
+                        result.put("error", "本地工具未注册到 MCP 系统");
+                        result.put("details", String.format(
+                            "工具 '%s' 未在 MCP 系统中注册。\n\n" +
+                            "可能原因：\n" +
+                            "1. 工具类未添加 @McpTool 注解\n" +
+                            "2. 工具类未被 Spring 扫描（缺少 @Service 或 @Component 注解）\n" +
+                            "3. 工具方法未添加 @McpToolParam 参数注解\n" +
+                            "4. 应用启动时工具扫描失败",
+                            tool.getName()
+                        ));
                         return ResponseEntity.badRequest().body(result);
                     }
                     toolResult = mcpToolInvokeService.invokeTool(tool.getName(), params);

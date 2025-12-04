@@ -163,7 +163,7 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 :deep(.el-table__body-wrapper) {
